@@ -60,9 +60,10 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
-#include "ps5000aApi.h"
+#include <time.h>
+#include "../inc/ps5000aApi.h"
 
-#include "../shared/GenericMethods.h"
+#include "../inc/GenericMethods.h"
 
 using namespace std;
 
@@ -146,6 +147,7 @@ int32_t cycles = 0;
 
 #define MAX_PICO_DEVICES 64
 #define TIMED_LOOP_STEP 500
+#define TIMEOUT_STOP 2000
 
 // int32_t     g_sampleCount;
 // uint32_t		g_startIndex;
@@ -200,7 +202,7 @@ int32_t main(void)
     return -1;
   }
 
-  if (0 == usbPowered) {
+  if (1 == usbPowered) {
     status = ps5000aSetChannel(handle, PS5000A_CHANNEL::PS5000A_CHANNEL_C, 0, PS5000A_COUPLING::PS5000A_DC, PS5000A_RANGE::PS5000A_1V, 0);
     if (PICO_OK != status) {
       std::cout << "ERROR : Set Channel C : " << status << " ; " << std::hex << status << std::dec << std::endl;
@@ -235,7 +237,8 @@ int32_t main(void)
   // Setup the timebase
   int32_t timeIntervalNS;
   int32_t maxSamples;
-  constexpr uint32_t TIMEBASE = 4;
+  // constexpr uint32_t TIMEBASE = 4;
+  constexpr uint32_t TIMEBASE = 250000;
   status = ps5000aGetTimebase(handle, TIMEBASE, NO_OF_SAMPLES, &timeIntervalNS, &maxSamples, 0);
   if (PICO_OK != status) {
     std::cout << "ERROR : Get Timebase : " << status << " ; " << std::hex << status << std::dec << std::endl;
@@ -243,7 +246,7 @@ int32_t main(void)
     return -1;
   }
 
-  // Set the Trugger
+  // Set the Trigger
   status = ps5000aSetSimpleTrigger(handle, 1, PS5000A_CHANNEL::PS5000A_CHANNEL_A, 10000, PS5000A_THRESHOLD_DIRECTION::PS5000A_RISING, 0, 5000);
   if (PICO_OK != status) {
     std::cout << "ERROR : Set Trigger : " << status << " ; " << std::hex << status << std::dec << std::endl;
@@ -256,8 +259,8 @@ int32_t main(void)
     0,
     1000000,
     PS5000A_SINE,
-    100,
-    100,
+    1000000,
+    1000000,
     1,
     1,
     PS5000A_UP,
@@ -273,6 +276,17 @@ int32_t main(void)
     return -1;
   }
 
+  string input;
+  clock_t t_start, t_end;
+  std::cin >> input;
+  if (input[0] == 's') {
+    std::cout << "Acquiring ..." << std::endl;
+  } else {
+    std::cout << "Exiting ..." << std::endl;
+    getStatusCode(status);
+    return -1;
+  }
+
   // Execute the data acquisition.=
   int32_t timeIndisposedMs;
   status = ps5000aRunBlock(handle, 10, NO_OF_SAMPLES - 11, TIMEBASE, &timeIndisposedMs, 0, nullptr, nullptr);
@@ -284,16 +298,27 @@ int32_t main(void)
 
   // Wait for the Data Acqusition to be completed
   int16_t isReady = 0;
+  int32_t time_acq = 0;
   while (0 == isReady && PICO_OK == status) {
+    // std::cout << "IsReady : " << isReady << std::endl;
+    // std::cout << ".";
     status = ps5000aIsReady(handle, &isReady);
-    std::cout << "IsReady : " << isReady << std::endl;
     if (PICO_OK != status) {
       std::cout << "ERROR : IsReady Issue : " << status << " ; " << std::hex << status << std::dec << std::endl;
       getStatusCode(status);
       return -1;
     }
+    if (time_acq > TIMEOUT_STOP) {
+      ps5000aStop(handle);
+      ps5000aCloseUnit(handle);
+      std::cout << "TIMEOUT " << std::endl;
+      getStatusCode(status);
+      return -1;
+    }
     Sleep(1);
+    time_acq++;
   }
+  std::cout << "IsReady : " << time_acq << std::endl;
 
   // Extract the acquired samples
   uint32_t noSamples = NO_OF_SAMPLES;

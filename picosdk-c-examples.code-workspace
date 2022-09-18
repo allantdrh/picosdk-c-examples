@@ -1,0 +1,12 @@
+{
+        "folders": [
+                {
+                        "path": "ps5000a"
+                }
+        ],
+        "settings": {
+                "files.associations": {
+                        "ps5000aapi.h": "c"
+                }
+        }
+}
